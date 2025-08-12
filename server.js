@@ -5,7 +5,7 @@ const url = require("url")
 
 require("dotenv").config()
 
-const port = process.env.PORT | 8000
+const port = process.env.PORT || 8000
 const server = http.createServer()
 const wsServer = new ws.WebSocketServer({ server })
 
@@ -46,6 +46,26 @@ class Card {
         return color + "_" + num
     }
 }
+
+const endGame = (winnerUsername = null) => {
+  gameState = "WAITING_PLAYERS";
+  turn = null;
+  lastCard = null;
+
+  // Avisar a todos os jogadores ainda conectados
+  users.forEach(u => {
+    if (connections[u.id]) {
+      connections[u.id].send(JSON.stringify({
+        event: "END_GAME",
+        winner: winnerUsername,
+        gameState
+      }));
+    }
+  });
+
+  // Limpar cartas
+  users = users.map(u => ({ ...u, state: { cards: [] } }));
+};
 
 const broadcastGameStatus = ()=>{
     users.forEach(user=>{
@@ -125,13 +145,16 @@ wsServer.on("connection", (connection,request)=>{
     connection.send(JSON.stringify({yourId: id}))
 
     connection.on("close", ()=>{
-        console.log("Um Jogador Saiu ... " + users.find(user=>user.id==id).username)
-        delete connections[id]
-        users = users.filter(user=>user.id!=id)
+        const player = users.find(user => user.id === id);
+        console.log(`Um Jogador Saiu ... ${player?.username}`);
 
-        if(gameState == "GOING" && users.length < 3) gameState = "WAITING PLAYERS"
+        delete connections[id];
+        users = users.filter(user => user.id !== id);
 
-        console.log(users)
+        if (gameState === "GOING" && users.length < 2) {
+            // menos de 2 jogadores -> não faz sentido continuar
+            endGame();
+        }
     })
 
     connection.on("message", message => {
@@ -161,33 +184,17 @@ wsServer.on("connection", (connection,request)=>{
                         connection.send(JSON.stringify({error: "Carta não encontrada"}))
                         return
                     }
-                    if(Card.compatible(card, lastCard)) {
-                        sendCard(card, user)
-                        users.forEach(user => {
-                    console.log(user.state.cards.length)
-                    if (user.state.cards.length === 0) {
-                        console.log(`Jogador ${user.username} venceu!`);
-                        gameState = "WAITING_PLAYERS";
-
-                        // Anunciar para todos
+                    if (Card.compatible(card, lastCard)) {
+                        sendCard(card, user);
                         users.forEach(u => {
-                                connections[u.id].send(JSON.stringify({
-                                    event: "END_GAME",
-                                    winner: user.username,
-                                    gameState
-                                }));
-                            });
-
-                            // Resetar estado do jogo
-                            turn = null;
-                            lastCard = null;
-                            users = users.map(u => ({ ...u, state: { cards: [] } }));
-
-                            return; // sai do forEach
+                            if (u.state.cards.length === 0) {
+                                console.log(`Jogador ${u.username} venceu!`);
+                                endGame(u.username);
                             }
                         });
+                        return; // <- evita mandar o erro depois
                     }
-                    connection.send(JSON.stringify({error: "cant send this card"}))
+                    connection.send(JSON.stringify({error: "cant send this card"}));
                 }
 
                 if(action.startsWith("BUY")){
