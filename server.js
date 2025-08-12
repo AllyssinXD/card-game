@@ -3,7 +3,9 @@ const http = require("http")
 const uuidv4 = require("uuid").v4
 const url = require("url")
 
-const port = 8000
+require("dotenv").config()
+
+const port = process.env.PORT | 8000
 const server = http.createServer()
 const wsServer = new ws.WebSocketServer({ server })
 
@@ -123,7 +125,6 @@ wsServer.on("connection", (connection,request)=>{
     connection.send(JSON.stringify({yourId: id}))
 
     connection.on("close", ()=>{
-
         console.log("Um Jogador Saiu ... " + users.find(user=>user.id==id).username)
         delete connections[id]
         users = users.filter(user=>user.id!=id)
