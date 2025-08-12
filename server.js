@@ -50,7 +50,7 @@ const broadcastGameStatus = ()=>{
         const id = user.id
         const playerState = user.state
         const otherUsersInfo = users.map(user=>{
-            if(user.id != id) return {id: user.id, isTyping: false, username: user.username, cardsLength: user.state.cards.length}
+            return {id: user.id, isTyping: false, username: user.username, cardsLength: user.state.cards.length}
         })
         connections[id].send(JSON.stringify({lastCard, players: otherUsersInfo, gameState, turn, state: playerState}))
     })
@@ -107,16 +107,17 @@ wsServer.on("connection", (connection,request)=>{
     connections[id] = connection
     console.log("Um Jogador Entrou! ", username)
 
-    users.forEach(user=>{
-        const id = user.id
-        connections[id].send("Um novo jogador entrou no jogo! " + username)
-    })
     users.push({
         id,
         username,
         state: {
             cards: []
         }
+    })
+
+    const allPlayers = users.map(user=>{return {id: user.id, username: user.username, cardLength: user.state.cards.length, isTyping: false}})
+    users.forEach(user=>{
+        connections[user.id].send(JSON.stringify({event: "PLAYER_ENTERED", players: allPlayers, gameState}))
     })
 
     connection.send(JSON.stringify({yourId: id}))
@@ -161,7 +162,29 @@ wsServer.on("connection", (connection,request)=>{
                     }
                     if(Card.compatible(card, lastCard)) {
                         sendCard(card, user)
-                        return
+                        users.forEach(user => {
+                    console.log(user.state.cards.length)
+                    if (user.state.cards.length === 0) {
+                        console.log(`Jogador ${user.username} venceu!`);
+                        gameState = "WAITING_PLAYERS";
+
+                        // Anunciar para todos
+                        users.forEach(u => {
+                                connections[u.id].send(JSON.stringify({
+                                    event: "END_GAME",
+                                    winner: user.username,
+                                    gameState
+                                }));
+                            });
+
+                            // Resetar estado do jogo
+                            turn = null;
+                            lastCard = null;
+                            users = users.map(u => ({ ...u, state: { cards: [] } }));
+
+                            return; // sai do forEach
+                            }
+                        });
                     }
                     connection.send(JSON.stringify({error: "cant send this card"}))
                 }
@@ -182,16 +205,6 @@ wsServer.on("connection", (connection,request)=>{
                     if(!canPlay){
                         nextTurn()
                     }
-                }
-                if(user.state.cards.length == 0){
-                    connection.send(JSON.stringify({message: "O jogador " + user.username + " venceu!"}))
-                    gameState = "WAITING_PLAYERS"
-                    lastCard = null
-                    let turn = null
-
-                    connections.forEach(con=>{
-                        con.close();
-                    })
                 }
             }
         } catch (err) {
