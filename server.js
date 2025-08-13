@@ -80,6 +80,7 @@ const broadcastGameStatus = ()=>{
 
 const nextTurn = () => {
     turn = users[users.indexOf(users.find(u=>u.id==turn)) + 1] ? users[users.indexOf(users.find(u=>u.id==turn)) + 1].id : users[0].id
+    broadcastGameStatus()
 }
 
 const sendCard = (card, user)=>{
@@ -151,19 +152,19 @@ wsServer.on("connection", (connection,request)=>{
         delete connections[id];
         users = users.filter(user => user.id !== id);
 
-        if (gameState === "GOING" && users.length < 2) {
-            // menos de 2 jogadores -> não faz sentido continuar
-            endGame();
+        if (!(gameState === "GOING" && users.length < 2)) {
+            broadcastGameStatus()
             return;
         }
-
-        broadcastGameStatus()
+        endGame();
     })
 
     connection.on("message", message => {
         try{
             const {action} = JSON.parse(message)
             const user = users.find(user=>user.id==id)
+
+            console.log(JSON.parse(message))
 
             if(gameState == "WAITING_PLAYERS"){
                 if(action == "START_GAME"){
