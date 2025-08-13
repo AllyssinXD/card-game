@@ -27,7 +27,7 @@ class Card {
 
     static random(){
         return new Card(colors[Math.floor(Math.random() * colors.length)],
-         Math.floor(Math.random() * 9) + 1 + "") 
+         Math.floor(Math.random() * 10) + 1 + "") 
     }
 
     static distributeCards(){
@@ -78,6 +78,12 @@ const broadcastGameStatus = ()=>{
     })
 }
 
+const broadcastEvent= (event)=>{
+    users.forEach(user=>{
+        connections[user.id].send(JSON.stringify({event: event}))
+    })
+}
+
 const nextTurn = () => {
     turn = users[users.indexOf(users.find(u=>u.id==turn)) + 1] ? users[users.indexOf(users.find(u=>u.id==turn)) + 1].id : users[0].id
     broadcastGameStatus()
@@ -86,10 +92,18 @@ const nextTurn = () => {
 const sendCard = (card, user)=>{
     lastCard = card
     user.state.cards = user.state.cards.filter(c=>c.id!=card.id)
+    if(card.num == "10"){
+        const next = users[users.indexOf(users.find(u=>u.id==turn)) + 1]
+        if (!next) return
+        for(let i = 0; i < 2; i++){
+            next.state.cards.push(Card.random())
+        }
+    }
     nextTurn()
     users = users.map(u=>u.id==user.id?user:u)
     connections[user.id].send("Carta jogada com sucesso!")
     broadcastGameStatus()
+    broadcastEvent("PLAYED_"+user.id+"_"+card.id)
 }
 
 const buyCard = (user) => {
@@ -212,6 +226,7 @@ wsServer.on("connection", (connection,request)=>{
                     }
                     const newCard = buyCard(user)
                     connection.send(JSON.stringify({newCard}))
+                    broadcastEvent("BUYED_" + user.id)
                     let canPlay = false
                     user.state.cards.forEach(card=>{
                         if(Card.compatible(card, lastCard)){
