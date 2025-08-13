@@ -154,7 +154,10 @@ wsServer.on("connection", (connection,request)=>{
         if (gameState === "GOING" && users.length < 2) {
             // menos de 2 jogadores -> não faz sentido continuar
             endGame();
+            return;
         }
+
+        broadcastGameStatus()
     })
 
     connection.on("message", message => {
