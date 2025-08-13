@@ -166,7 +166,11 @@ wsServer.on("connection", (connection,request)=>{
             const user = users.find(user=>user.id==id)
 
             if(gameState == "WAITING_PLAYERS"){
-                if(action == "START_GAME" && id == users[0].id){
+                if(action == "START_GAME"){
+                    if(id != users[0].id) {
+                        connection.send(JSON.stringify({error: "Você não é o lider da sala"}))
+                        return
+                    }
                     startGame()
                 }
             }
