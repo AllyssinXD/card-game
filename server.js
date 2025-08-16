@@ -141,6 +141,7 @@ wsServer.on("connection", (connection,request)=>{
         return
     }
     if(gameState != "WAITING_PLAYERS") { 
+        connection.send(JSON.stringify({error:  "GAME-ALREADY-STARTED"}))
         connection.close(1013, "Jogo já começou")
         return
     }
