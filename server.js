@@ -18,6 +18,8 @@ let lastCard = null
 
 const colors = ["BLUE", "RED", "GREEN", "YELLOW"]
 
+let eventCounter = 0
+
 class Card {
     constructor(color, num){
         this.color = color
@@ -27,7 +29,8 @@ class Card {
 
     static random(){
         return new Card(colors[Math.floor(Math.random() * colors.length)],
-         Math.floor(Math.random() * 10) + 1 + "") 
+         Math.floor(Math.random() * 10) + 1 + "")
+         //return new Card("YELLOW", "15")
     }
 
     static distributeCards(){
@@ -80,8 +83,9 @@ const broadcastGameStatus = ()=>{
 
 const broadcastEvent= (event)=>{
     users.forEach(user=>{
-        connections[user.id].send(JSON.stringify({event: event}))
+        connections[user.id].send(JSON.stringify({event: event+"_"+eventCounter}))
     })
+    eventCounter++
 }
 
 const nextTurn = () => {
@@ -92,17 +96,19 @@ const nextTurn = () => {
 const sendCard = (card, user)=>{
     lastCard = card
     user.state.cards = user.state.cards.filter(c=>c.id!=card.id)
-    if(card.num == "10"){
-        const next = users[users.indexOf(users.find(u=>u.id==turn)) + 1]
+    if(parseInt(card.num) > 9){
+        console.log("CARTA ESPECIAL JOGADA")
+        const next = users[users.findIndex(u=>u.id==turn) + 1] || users[0]
+        cardQuantity = parseInt(card.num) - 8
+        console.log("+" + cardQuantity +" VAI IR PARA ", next.username)
         if (!next) return
-        for(let i = 0; i < 2; i++){
+        for(let i = 0; i < cardQuantity; i++){
             next.state.cards.push(Card.random())
+            console.log(`ADDED ${cardQuantity} CARDS FOR ` + next.username)
         }
     }
     nextTurn()
     users = users.map(u=>u.id==user.id?user:u)
-    connections[user.id].send("Carta jogada com sucesso!")
-    broadcastGameStatus()
     broadcastEvent("PLAYED_"+user.id+"_"+card.id)
 }
 
@@ -110,7 +116,6 @@ const buyCard = (user) => {
     const newCard = Card.random()
     user.state.cards.push(newCard)
     users = users.map(u=>u.id==user.id?user:u)
-    connections[user.id].send("Carta comprada com sucesso")
     broadcastGameStatus()
     return newCard
 }
@@ -125,7 +130,7 @@ const startGame = ()=>{
         return user
     })
     users = newUsers
-
+    broadcastEvent("GAME_STARTED")
     broadcastGameStatus()
 }
 
@@ -165,6 +170,7 @@ wsServer.on("connection", (connection,request)=>{
 
         delete connections[id];
         users = users.filter(user => user.id !== id);
+        if(gameState == "GOING") nextTurn()
 
         if (!(gameState === "GOING" && users.length < 2)) {
             broadcastGameStatus()
@@ -201,6 +207,11 @@ wsServer.on("connection", (connection,request)=>{
                         connection.send(JSON.stringify({error: "Id da carta não foi passado"}))
                         return
                     }
+
+                    user.state.cards.forEach(card=>{
+                        console.log(card.id, cardId, card.id == cardId )
+                    })
+                    
                     const card = user.state.cards.find(card=>card.id==cardId)
                     if(!card) {
                         connection.send(JSON.stringify({error: "Carta não encontrada"}))
